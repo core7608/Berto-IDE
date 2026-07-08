@@ -1,0 +1,79 @@
+{
+  "name": "berto-ide",
+  "version": "1.0.0",
+  "description": "Berto IDE - A powerful, extensible code editor with VS Code extension support, built-in AI assistant, live collaboration, and more.",
+  "main": "src/main/main.js",
+  "author": "Berto IDE Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/YOUR_USERNAME/berto-ide",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "postinstall": "electron-builder install-app-deps",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder -mwl"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "monaco-editor": "^0.47.0",
+    "node-pty": "^1.0.0",
+    "semver": "^7.6.0",
+    "simple-git": "^3.24.0",
+    "unzipper": "^0.11.6",
+    "ws": "^8.16.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0"
+  },
+  "devDependencies": {
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.bertoide.app",
+    "productName": "Berto IDE",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Berto IDE"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": ["AppImage", "deb", "tar.gz"],
+      "icon": "build/icon.png",
+      "category": "Development"
+    }
+  }
+}

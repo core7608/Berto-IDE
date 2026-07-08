@@ -1,0 +1,128 @@
+// Renders and manages the file explorer tree.
+
+const FILE_ICONS = {
+  js: '📜', jsx: '📜', ts: '📘', tsx: '📘', json: '🔧',
+  html: '🌐', css: '🎨', scss: '🎨', md: '📝', py: '🐍',
+  png: '🖼️', jpg: '🖼️', jpeg: '🖼️', svg: '🖼️', gif: '🖼️',
+  gitignore: '⚙️', env: '🔒', lock: '🔒', yml: '⚙️', yaml: '⚙️'
+};
+
+function iconFor(node) {
+  if (node.type === 'folder') return node.__open ? '📂' : '📁';
+  const ext = node.name.includes('.') ? node.name.split('.').pop().toLowerCase() : '';
+  return FILE_ICONS[ext] || '📄';
+}
+
+export class FileTree {
+  constructor(container, callbacks) {
+    this.container = container;
+    this.callbacks = callbacks; // { onOpenFile, onContextMenu }
+    this.rootPath = null;
+    this.rootNode = null;
+    this.selectedPath = null;
+  }
+
+  async setRoot(rootPath) {
+    this.rootPath = rootPath;
+    const result = await window.bertoAPI.fs.readDir(rootPath);
+    if (!result.success) {
+      this.container.innerHTML = `<div style="padding:12px;color:#ff6b6b;font-size:12px;">${result.error}</div>`;
+      return;
+    }
+    this.rootNode = result.tree;
+    this.rootNode.__open = true;
+    await window.bertoAPI.fs.watch(rootPath);
+    this.render();
+  }
+
+  async refresh() {
+    if (this.rootPath) await this.setRoot(this.rootPath);
+  }
+
+  async _loadChildren(node) {
+    if (!node.lazy) return;
+    const result = await window.bertoAPI.fs.readDir(node.path);
+    if (result.success) {
+      node.children = result.tree.children;
+      delete node.lazy;
+    }
+  }
+
+  render() {
+    this.container.innerHTML = '';
+    if (!this.rootNode) return;
+    const list = this._renderNode(this.rootNode, 0);
+    this.container.appendChild(list);
+  }
+
+  _renderNode(node, depth) {
+    const wrapper = document.createElement('div');
+
+    const row = document.createElement('div');
+    row.className = 'tree-item';
+    if (node.path === this.selectedPath) row.classList.add('selected');
+    row.style.paddingLeft = `${14 + depth * 14}px`;
+    row.dataset.path = node.path;
+    row.dataset.type = node.type;
+
+    const icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.textContent = iconFor(node);
+    row.appendChild(icon);
+
+    const label = document.createElement('span');
+    label.textContent = node.name;
+    row.appendChild(label);
+
+    wrapper.appendChild(row);
+
+    let childrenContainer = null;
+    if (node.type === 'folder') {
+      childrenContainer = document.createElement('div');
+      childrenContainer.className = 'tree-children';
+      if (node.__open) childrenContainer.classList.add('open');
+      wrapper.appendChild(childrenContainer);
+
+      row.addEventListener('click', async () => {
+        node.__open = !node.__open;
+        icon.textContent = iconFor(node);
+        if (node.__open) {
+          await this._loadChildren(node);
+          childrenContainer.innerHTML = '';
+          for (const child of node.children || []) {
+            childrenContainer.appendChild(this._renderNode(child, depth + 1));
+          }
+          childrenContainer.classList.add('open');
+        } else {
+          childrenContainer.classList.remove('open');
+        }
+      });
+
+      if (node.__open && node.children) {
+        for (const child of node.children) {
+          childrenContainer.appendChild(this._renderNode(child, depth + 1));
+        }
+      }
+    } else {
+      row.addEventListener('click', () => {
+        this.selectedPath = node.path;
+        this.container.querySelectorAll('.tree-item.selected').forEach(el => el.classList.remove('selected'));
+        row.classList.add('selected');
+        if (this.callbacks.onOpenFile) this.callbacks.onOpenFile(node.path);
+      });
+    }
+
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (this.callbacks.onContextMenu) this.callbacks.onContextMenu(node, e.clientX, e.clientY);
+    });
+
+    return wrapper;
+  }
+
+  handleExternalChange(changedPath) {
+    // Simple strategy: refresh whole tree on any change under root.
+    // (Good enough for a first-class experience without excessive complexity.)
+    this.refresh();
+  }
+}
