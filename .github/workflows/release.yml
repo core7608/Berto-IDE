@@ -1,0 +1,111 @@
+name: Build and Release Berto IDE
+
+# Triggers:
+# 1. Push a tag like "v1.0.0" -> builds for Win/Mac/Linux and publishes a GitHub Release automatically.
+# 2. Manual trigger from the Actions tab (workflow_dispatch) for testing builds without releasing.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a draft GitHub Release with the built artifacts'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build_cmd: npm run dist:win
+          - os: macos-latest
+            build_cmd: npm run dist:mac
+          - os: ubuntu-latest
+            build_cmd: npm run dist:linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Linux native build dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libx11-dev libxkbfile-dev
+
+      - name: Install dependencies
+        run: npm ci
+
+      # No GH_TOKEN passed here on purpose: electron-builder must NOT publish
+      # directly during this step. Three OS jobs publishing to the same
+      # GitHub Release at the same time caused race conditions and upload
+      # timeouts (see the "release" job below, which publishes once,
+      # centrally, after every build has finished).
+      #
+      # To add code signing later, add these as repo secrets and reference
+      # them via `env:` here: CSC_LINK / CSC_KEY_PASSWORD (mac),
+      # WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD (windows).
+      - name: Build application (${{ matrix.os }})
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload build artifacts (per-OS, always available in the run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: berto-ide-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+            release/*.tar.gz
+            !release/*-unpacked/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifact folders
+        run: |
+          mkdir -p dist-final
+          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.tar.gz" \) -exec cp {} dist-final/ \;
+          ls -la dist-final
+
+      - name: Create/Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-final/*
+          draft: false
+          generate_release_notes: true
+          name: Berto IDE ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

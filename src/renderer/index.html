@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: https://open-vsx.org https://api.anthropic.com https://api.openai.com;" />
+<title>Berto IDE</title>
+<link rel="stylesheet" href="styles/main.css" />
+<link rel="stylesheet" href="../../node_modules/xterm/css/xterm.css" />
+</head>
+<body>
+  <div id="titlebar">
+    <div id="titlebar-left">
+      <img src="../../build/icon.png" class="app-logo" alt="" />
+      <span class="app-name">Berto IDE</span>
+    </div>
+    <div id="titlebar-center">
+      <span id="breadcrumb"></span>
+    </div>
+    <div id="titlebar-right">
+      <span id="collab-indicator" class="hidden"><span class="live-dot"></span>Live Session</span>
+    </div>
+  </div>
+
+  <div id="app">
+    <div id="activity-bar">
+      <button class="activity-btn active" data-view="explorer" data-icon="files" title="Explorer"></button>
+      <button class="activity-btn" data-view="search" data-icon="search" title="Search"></button>
+      <button class="activity-btn" data-view="git" data-icon="branch" title="Source Control"></button>
+      <button class="activity-btn" data-view="extensions" data-icon="extensions" title="Extensions"></button>
+      <button class="activity-btn" data-view="ai" data-icon="assistant" title="AI Assistant"></button>
+      <button class="activity-btn" data-view="collab" data-icon="collab" title="Live Collaboration"></button>
+      <div class="activity-spacer"></div>
+      <button class="activity-btn" data-view="settings" data-icon="settings" title="Settings"></button>
+    </div>
+
+    <div id="sidebar">
+      <div id="view-explorer" class="sidebar-view active">
+        <div class="sidebar-header">
+          <span>Explorer</span>
+          <div class="sidebar-actions">
+            <button id="btn-new-file" data-icon="newFile" title="New File"></button>
+            <button id="btn-new-folder" data-icon="newFolder" title="New Folder"></button>
+            <button id="btn-refresh" data-icon="refresh" title="Refresh Explorer"></button>
+          </div>
+        </div>
+        <div id="explorer-empty" class="sidebar-empty-state">
+          <p>No folder opened.</p>
+          <button id="btn-open-folder" class="btn-block">Open Folder</button>
+        </div>
+        <div id="file-tree"></div>
+      </div>
+
+      <div id="view-search" class="sidebar-view">
+        <div class="sidebar-header"><span>Search</span></div>
+        <div class="sidebar-input-row">
+          <input id="search-input" placeholder="Search across files" autocomplete="off" />
+        </div>
+        <div id="search-results" class="sidebar-scroll"></div>
+      </div>
+
+      <div id="view-git" class="sidebar-view">
+        <div class="sidebar-header"><span>Source Control</span></div>
+        <div id="git-panel">
+          <button id="git-init-btn" class="btn-block">Initialize Repository</button>
+          <textarea id="commit-message" placeholder="Commit message" rows="2"></textarea>
+          <div class="btn-row">
+            <button id="git-stage-all" class="btn-secondary">Stage All</button>
+            <button id="git-commit-btn" class="btn-secondary">Commit</button>
+          </div>
+          <div class="btn-row">
+            <button id="git-push-btn" class="btn-secondary">Push</button>
+            <button id="git-pull-btn" class="btn-secondary">Pull</button>
+          </div>
+          <div id="git-status-list" class="sidebar-scroll"></div>
+        </div>
+      </div>
+
+      <div id="view-extensions" class="sidebar-view">
+        <div class="sidebar-header"><span>Extensions</span></div>
+        <div class="sidebar-input-row">
+          <input id="ext-search-input" placeholder="Search Open VSX Marketplace" autocomplete="off" />
+        </div>
+        <button id="ext-install-vsix-btn" class="btn-block">Install from VSIX...</button>
+        <div id="ext-search-results" class="sidebar-scroll"></div>
+        <div class="sidebar-subheader">Installed</div>
+        <div id="ext-installed-list" class="sidebar-scroll"></div>
+      </div>
+
+      <div id="view-ai" class="sidebar-view">
+        <div class="sidebar-header"><span>AI Assistant</span></div>
+        <div id="ai-config-banner" class="hidden">
+          <p>No AI provider configured yet.</p>
+          <select id="ai-provider-select">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI</option>
+          </select>
+          <input id="ai-key-input" type="password" placeholder="API key" autocomplete="off" />
+          <button id="ai-save-key-btn" class="btn-block">Save Key</button>
+        </div>
+        <div id="ai-chat-messages" class="sidebar-scroll"></div>
+        <div class="ai-quick-actions">
+          <button id="ai-explain-btn" class="btn-secondary">Explain Selection</button>
+          <button id="ai-fix-btn" class="btn-secondary">Fix Error</button>
+        </div>
+        <div id="ai-chat-input-row">
+          <textarea id="ai-chat-input" placeholder="Ask Berto AI..." rows="1"></textarea>
+          <button id="ai-send-btn" data-icon="send" title="Send"></button>
+        </div>
+      </div>
+
+      <div id="view-collab" class="sidebar-view">
+        <div class="sidebar-header"><span>Live Collaboration</span></div>
+        <div id="collab-panel">
+          <button id="collab-start-btn" class="btn-block">Start Live Session (Host)</button>
+          <div id="collab-session-info" class="hidden">
+            <p class="label">Session ID</p>
+            <p class="value" id="collab-session-id"></p>
+            <p class="hint">Share your local network address and this ID with collaborators.</p>
+          </div>
+          <div class="sidebar-divider"></div>
+          <p class="label">Join a Session</p>
+          <div class="sidebar-input-row">
+            <input id="collab-address-input" placeholder="ws://host-ip:5577" autocomplete="off" />
+          </div>
+          <button id="collab-join-btn" class="btn-block">Join Session</button>
+          <button id="collab-leave-btn" class="btn-block btn-danger hidden">Leave Session</button>
+          <div id="collab-peers-list" class="sidebar-scroll"></div>
+        </div>
+      </div>
+
+      <div id="view-settings" class="sidebar-view">
+        <div class="sidebar-header"><span>Settings</span></div>
+        <div class="settings-group">
+          <label>Theme</label>
+          <select id="theme-select">
+            <option value="berto-dark">Berto Dark (default)</option>
+            <option value="vs-dark">VS Dark</option>
+            <option value="hc-black">High Contrast</option>
+            <option value="vs">Light</option>
+          </select>
+        </div>
+        <div class="settings-group">
+          <label>Font Size <span id="font-size-value">14px</span></label>
+          <input type="range" id="font-size-slider" min="10" max="24" value="14" />
+        </div>
+        <div class="settings-group settings-row">
+          <label>Word Wrap</label>
+          <input type="checkbox" id="word-wrap-toggle" />
+        </div>
+        <div class="settings-group settings-row">
+          <label>Minimap</label>
+          <input type="checkbox" id="minimap-toggle" checked />
+        </div>
+      </div>
+    </div>
+
+    <div id="editor-area">
+      <div id="tabs-bar"></div>
+      <div id="editor-container"></div>
+      <div id="welcome-screen">
+        <div class="welcome-mark">{=}</div>
+        <h1>Berto IDE</h1>
+        <p class="version-tag" id="welcome-version"></p>
+        <p>An extensible editor with VS Code extension support, a built-in AI assistant, and live collaboration.</p>
+        <div class="welcome-actions">
+          <button id="welcome-open-folder" class="btn-secondary">Open Folder</button>
+          <button id="welcome-new-file" class="btn-secondary">New File</button>
+        </div>
+        <div class="welcome-shortcuts">
+          <div><span>Command Palette</span><kbd>Ctrl+Shift+P</kbd></div>
+          <div><span>Open Folder</span><kbd>Ctrl+Shift+O</kbd></div>
+          <div><span>Toggle Terminal</span><kbd>Ctrl+`</kbd></div>
+          <div><span>Save File</span><kbd>Ctrl+S</kbd></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-container" class="collapsed">
+    <div id="panel-tabs">
+      <button class="panel-tab active" data-panel="terminal">TERMINAL</button>
+      <button class="panel-tab" data-panel="problems">PROBLEMS</button>
+      <button class="panel-tab" data-panel="output">OUTPUT</button>
+      <button id="panel-close-btn" data-icon="close" title="Close Panel"></button>
+    </div>
+    <div id="panel-content">
+      <div id="panel-terminal" class="panel-view active"></div>
+      <div id="panel-problems" class="panel-view"></div>
+      <div id="panel-output" class="panel-view"></div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="status-branch"></span>
+    <span id="status-position">Ln 1, Col 1</span>
+    <span id="status-language"></span>
+    <span id="status-encoding">UTF-8</span>
+    <span class="statusbar-spacer"></span>
+    <span id="status-extensions-count"></span>
+  </div>
+
+  <div id="command-palette-overlay" class="hidden">
+    <div id="command-palette">
+      <input id="command-palette-input" placeholder="Type a command..." autocomplete="off" />
+      <div id="command-palette-results"></div>
+    </div>
+  </div>
+
+  <div id="modal-overlay" class="hidden">
+    <div id="modal-box">
+      <div id="modal-title"></div>
+      <div id="modal-body"></div>
+      <div id="modal-actions"></div>
+    </div>
+  </div>
+
+  <script src="../../node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script src="../../node_modules/xterm/lib/xterm.js"></script>
+  <script src="../../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
